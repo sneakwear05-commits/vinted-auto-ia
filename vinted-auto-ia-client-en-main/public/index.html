@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>vinted auto ia</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css" />
+  <meta name="theme-color" content="#111111" />
+</head>
+<body>
+  <header class="header">
+    <div class="wrap">
+      <h1>vinted auto ia</h1>
+      <p class="sub">photos ➜ annonce + photo mannequin (sans visage)</p>
+      <div id="status" class="status">connexion…</div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2>1) photos</h2>
+      <p class="hint">Ajoute idéalement : face, dos, étiquette taille/composition, logo, défaut(s).</p>
+      <input id="photos" type="file" accept="image/*" multiple />
+      <div id="preview" class="preview"></div>
+    </section>
+
+    <section class="card">
+      <h2>2) options</h2>
+      <label class="row"><input id="useAi" type="checkbox" checked> utiliser l’ia</label>
+      <label class="row"><input id="useMannequin" type="checkbox" checked> photo mannequin</label>
+      <div class="row">
+        <label for="gender">mannequin :</label>
+        <select id="gender">
+          <option value="homme" selected>homme</option>
+          <option value="femme">femme</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="extra">infos supplémentaires (optionnel)</label>
+      </div>
+      <textarea id="extra" rows="4" placeholder="ex: marque, modèle, taille, mesures, défauts, matière…"></textarea>
+
+      <button id="go" class="btn">générer</button>
+      <div id="progress" class="progress" hidden>génération en cours…</div>
+    </section>
+
+    <section class="card">
+      <h2>3) résultat</h2>
+      <div class="row actions">
+        <button id="copyTitle" class="btn secondary" disabled>copier titre</button>
+        <button id="copyDesc" class="btn secondary" disabled>copier description</button>
+      </div>
+
+      <h3>titre</h3>
+      <pre id="outTitle" class="out"></pre>
+
+      <h3>description</h3>
+      <pre id="outDesc" class="out"></pre>
+
+      <h3>prix conseillé</h3>
+      <pre id="outPrice" class="out"></pre>
+
+      <h3>photo mannequin</h3>
+      <div id="mannequinBox" class="mannequin">
+        <div class="hint">Elle apparaîtra ici si activée.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <small>Astuce : ajoute cette page à l’écran d’accueil (Safari ➜ Partager ➜ Sur l’écran d’accueil).</small>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

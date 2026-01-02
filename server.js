@@ -115,7 +115,6 @@ Réponds avec un JSON STRICT au format :
 Infos supplémentaires de l'utilisateur : ${extra}` : "")
   },
 ];
-
     // Ajoute jusqu’à 6 images
     for (const dataUrl of images.slice(0, 6)) {
       content.push({ type: "input_image", image_url: dataUrl });
@@ -175,19 +174,21 @@ app.post("/api/generate-mannequin", async (req, res) => {
       refFiles.push(await dataUrlToFile(images[i], "ref_" + (i + 1)));
     }
 
-    const prompt =
-      À partir des PHOTOS DE RÉFÉRENCE, génère une photo studio réaliste d’un mannequin portant EXACTEMENT le même vêtement.\n\n +
-      Contraintes OBLIGATOIRES :\n +
-      - Fidélité maximale au vêtement des photos (coupe, matière, texture, coutures, col, manches, bords-côtes).\n +
-      - Couleurs IDENTIQUES (ne change pas la teinte / saturation / luminosité).\n +
-      - Logos / broderies : identiques en taille et position. Si un détail n’est pas lisible sur les photos, NE PAS l’inventer.\n +
-      - Aucun ajout (pas de motifs inventés, pas de texte, pas de marque inventée).\n +
-      - Mannequin : SANS VISAGE (cadrage du cou vers le bas, pas de tête).\n +
-      - Posture neutre, vue de face, vêtement bien visible et centré.\n +
-      - Fond studio neutre (blanc/gris clair), éclairage doux, balance des blancs neutre (pas de dérive).\n +
-      - Rendu photo réaliste (pas de style dessin/illustration).\n\n +
-      Mannequin: ${gender}.\n +
-      Vêtement à porter (rappel): ${description}.\n;
+    const prompt = `À partir des PHOTOS DE RÉFÉRENCE, génère une photo studio réaliste d'un mannequin portant EXACTEMENT le même vêtement.
+
+Contraintes OBLIGATOIRES :
+- Fidélité maximale au vêtement des photos (coupe, matière, texture, coutures, col, manches, bords-côtes).
+- Couleurs IDENTIQUES (ne change pas la teinte / saturation / luminosité).
+- Logos / broderies : identiques en taille et position. Si un détail n'est pas lisible sur les photos, NE PAS l'inventer.
+- Aucun ajout (pas de motifs inventés, pas de texte, pas de marque inventée).
+- Mannequin : SANS VISAGE (cadrage du cou vers le bas, pas de tête).
+- Posture neutre, vue de face, vêtement bien visible et centré.
+- Fond studio neutre (blanc/gris clair), éclairage doux, balance des blancs neutre (pas de dérive).
+- Rendu photo réaliste (pas de style dessin/illustration).
+
+Mannequin : ${gender}.
+Vêtement à porter (rappel) : ${description}.
+`;
 
     const img = await client.images.edit({
       model: process.env.IMAGE_MODEL || "gpt-image-1",

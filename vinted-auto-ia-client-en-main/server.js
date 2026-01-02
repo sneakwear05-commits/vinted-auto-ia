@@ -112,7 +112,7 @@ Réponds avec un JSON STRICT au format :
 }
 `
       + (extra ? `
-Infos supplémentaires de l'utilisateur : ${extra}` : ""),
+Infos supplémentaires de l'utilisateur : ${extra}` : "")
   },
 ];
     // Ajoute jusqu’à 6 images

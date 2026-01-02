@@ -13,12 +13,50 @@ function setStatus(msg, ok=null){
   if(ok===false) s.classList.add('bad');
 }
 
-function fileToDataUrl(file){
-  return new Promise((resolve, reject)=>{
+async function fileToDataUrl(file){
+  // Convertit en JPEG + redimensionne (plus léger + compatible, ex: HEIC iPhone)
+  const raw = await new Promise((resolve, reject)=>{
     const fr = new FileReader();
     fr.onload = () => resolve(fr.result);
     fr.onerror = reject;
     fr.readAsDataURL(file);
+  });
+
+  return await normalizeImageDataUrl(raw, 1600, 0.9);
+}
+
+function normalizeImageDataUrl(dataUrl, maxDim = 1600, quality = 0.9){
+  return new Promise((resolve)=>{
+    try{
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+
+        // Downscale si nécessaire
+        let tw = w, th = h;
+        const maxSide = Math.max(w, h);
+        if(maxSide > maxDim){
+          const s = maxDim / maxSide;
+          tw = Math.round(w * s);
+          th = Math.round(h * s);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = tw;
+        canvas.height = th;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, tw, th);
+
+        // Toujours JPEG pour compatibilité API
+        const out = canvas.toDataURL('image/jpeg', quality);
+        resolve(out);
+      };
+      img.onerror = () => resolve(dataUrl); // fallback
+      img.src = dataUrl;
+    }catch(e){
+      resolve(dataUrl);
+    }
   });
 }
 
@@ -99,7 +137,7 @@ async function run(){
       if(useAi && useMannequin){
         const m = await postJson('/api/generate-mannequin', {
           gender,
-          // on donne la description, ça suffit pour un premier rendu
+          images: imgs, // ✅ on renvoie les mêmes photos que pour l’annonce (référence)
           description: listing.mannequin_prompt || listing.title || 'vêtement'
         });
         if(m.image_data_url){

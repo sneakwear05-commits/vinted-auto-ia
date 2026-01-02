@@ -72,7 +72,7 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}` }
       model: process.env.TEXT_MODEL || "gpt-5",
       reasoning: { effort: "low" },
       input: [{ role: "user", content }],
-      response_format: { type: "json_object" }
+      text: { format: { type: "json_object" } },
     });
 
     // output_text should contain JSON

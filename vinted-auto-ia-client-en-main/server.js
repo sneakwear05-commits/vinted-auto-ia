@@ -111,7 +111,9 @@ Réponds avec un JSON STRICT au format :
   "hashtags": ["#...", "#..."]
 }
 `
-      + (extra ? \nInfos supplémentaires de l'utilisateur : ${extra}\n : ""),
+      + (extra ? `
+Infos supplémentaires de l'utilisateur : ${extra}
+` : ""),
   },
 ];
     // Ajoute jusqu’à 6 images

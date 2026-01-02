@@ -102,6 +102,15 @@ app.post("/api/generate-mannequin", async (req, res) => {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const prompt =
+      Tu dois reproduire EXACTEMENT le vêtement des photos de référence.
+Contraintes OBLIGATOIRES :
+- Couleur : IDENTIQUE (ne change pas la teinte, saturation, ni luminosité).
+- Logo : IDENTIQUE (même logo, même taille, même position). N’invente JAMAIS un logo. Si le logo n’est pas parfaitement visible, n’en mets pas.
+- Coupe & détails : IDENTIQUES (col, maille, texture, bords-côtes, couture, longueur, manches).
+- Aucun ajout : pas de motifs, pas de texte, pas de marques, pas d’étiquettes visibles.
+- Mannequin : sans visage (cou coupé/masqué), posture neutre.
+- Fond studio neutre, éclairage doux et réaliste.
+Sortie souhaitée : 3 vues (face, dos, zoom logo/détail) en gardant strictement les caractéristiques.
 `Photo studio type Vinted, fond blanc, rendu photo réaliste.
 Mannequin ${gender}, SANS VISAGE (buste/cou coupé, aucune partie du visage visible).
 Le mannequin porte: ${description}.

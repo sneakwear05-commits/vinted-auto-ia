@@ -46,15 +46,23 @@ function getImagesFromBody(body) {
 
 // Convertit une dataURL (data:image/...;base64,...) en File pour l'API images.edits
 async function dataUrlToFile(dataUrl, name = "ref") {
-  const m = String(dataUrl || "").match(/^data:(image\/\w+);base64,(.+)$/);
+  const m = String(dataUrl || "").match(/^data:(image\/[^;]+);base64,(.+)$/);
   if (!m) throw new Error("Image invalide: data URL attendu (data:image/...;base64,...)");
 
-  const mime = m[1];
+  const mime = m[1].toLowerCase();
   const b64 = m[2];
-  const ext = mime === "image/jpeg" ? "jpg" : mime.split("/")[1];
-  const buf = Buffer.from(b64, "base64");
 
-  return await toFile(buf, name + "." + ext);
+  // L’API images.edits accepte: jpg/jpeg, png, webp (max 50MB).
+  const allowed = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+  if (!allowed.has(mime)) {
+    throw new Error(
+      `Format image non supporté (${mime}). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > "Le plus compatible").`
+    );
+  }
+
+  const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+  const buf = Buffer.from(b64, "base64");
+  return await toFile(buf, `${name}.${ext}`);
 }
 
 // 1) Générer l'annonce
@@ -149,26 +157,29 @@ app.post("/api/generate-mannequin", async (req, res) => {
     }
 
     const prompt = `
-À partir des PHOTOS DE RÉFÉRENCE fournies, crée une image studio d’un mannequin portant EXACTEMENT le même vêtement.
+    À partir des PHOTOS DE RÉFÉRENCE, génère une photo studio réaliste d’un mannequin portant EXACTEMENT le même vêtement.
 
-Contraintes OBLIGATOIRES :
-- Reproduire EXACTEMENT le vêtement des photos (forme, matière, texture, coutures, col, manches, bords-côtes).
-- Couleur IDENTIQUE (ne change pas la teinte / saturation / luminosité).
-- Logos / broderies : IDENTIQUES en taille et position. Si un logo n’est pas parfaitement lisible sur les photos, NE PAS en inventer.
-- Aucun ajout (pas de motifs, pas de texte, pas de marque inventée).
-- Mannequin : sans visage (cou coupé/masqué), posture neutre.
-- Fond studio neutre, éclairage doux, balance des blancs neutre (pas de dérive).
-- Rendu réaliste, cadrage centré.
+    Contraintes OBLIGATOIRES :
+    - Fidélité maximale au vêtement des photos (coupe, matière, texture, coutures, col, manches, bords-côtes).
+    - Couleurs IDENTIQUES (ne change pas la teinte / saturation / luminosité).
+    - Logos / broderies : identiques en taille et position. Si un détail n’est pas lisible sur les photos, NE PAS l’inventer.
+    - Aucun ajout (pas de motifs inventés, pas de texte, pas de marque inventée).
+    - Mannequin : SANS VISAGE (cadrage du cou vers le bas, pas de tête).
+    - Posture neutre, vue de face, vêtement bien visible et centré.
+    - Fond studio neutre (blanc/gris clair), éclairage doux, balance des blancs neutre (pas de dérive).
+    - Rendu photo réaliste (pas de style dessin/illustration).
 
-Mannequin ${gender}, SANS VISAGE.
-Le mannequin porte : ${description}.
-Vue souhaitée : face (centrée, vêtement bien visible).
-`;
+    Mannequin: ${gender}.
+    Vêtement à porter (rappel): ${description}.
+    `;
 
     const img = await client.images.edits({
       model: process.env.IMAGE_MODEL || "gpt-image-1",
       image: refFiles,
       prompt,
+      // ✅ maximise la fidélité au vêtement des photos (dispo sur gpt-image-1)
+      input_fidelity: "high",
+      background: "opaque",
       size: "1024x1024",
       quality: "high",
       output_format: "png",

@@ -26,7 +26,9 @@ app.get("/api/health", (req, res) => {
 // Helpers
 function requireKey() {
   if (!process.env.OPENAI_API_KEY) {
-    const err = new Error("OPENAI_API_KEY manquante (ajoute-la dans Render > Environment).");
+    const err = new Error(
+      "OPENAI_API_KEY manquante (ajoute-la dans Render > Environment)."
+    );
     err.status = 400;
     throw err;
   }
@@ -55,12 +57,12 @@ async function dataUrlToFile(dataUrl, name = "ref") {
   // L’API images accepte: jpg/jpeg, png, webp (max 50MB).
   const allowed = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
   if (!allowed.has(mime)) {
-  throw new Error(
-    "Format image non supporté (" +
-      mime +
-      "). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > \"Le plus compatible\")."
-  );
-}
+    throw new Error(
+      "Format image non supporté (" +
+        mime +
+        '). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > "Le plus compatible").'
+    );
+  }
 
   const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   const buf = Buffer.from(b64, "base64");
@@ -88,17 +90,18 @@ app.post("/api/generate-listing", async (req, res) => {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const content = [
-  {
-    type: "input_text",
-    text:
-      Tu es un expert Vinted. À partir des photos de vêtements, génère une annonce optimisée.\n +
-      Réponds STRICTEMENT en JSON (pas de texte autour) avec ces champs :\n +
-      - title: titre court (sans majuscules, tout en minuscules)\n +
-      - description: description détaillée + état + mesures si possible + matière si identifiable. Termine par une ligne de hashtags pertinents.\n +
-      - price: prix conseillé (nombre ou texte court) en euros\n +
-      - mannequin_prompt: un court texte décrivant le vêtement pour générer une image mannequin fidèle\n,
-  },
-];
+      {
+        type: "input_text",
+        text:
+          Tu es un expert Vinted. À partir des photos de vêtements, génère une annonce optimisée.\n +
+          Réponds STRICTEMENT en JSON (pas de texte autour) avec ces champs :\n +
+          - title: titre court (sans majuscules, tout en minuscules)\n +
+          - description: description détaillée + état + mesures si possible + matière si identifiable. Termine par une ligne de hashtags pertinents.\n +
+          - price: prix conseillé (nombre ou texte court) en euros\n +
+          - mannequin_prompt: un court texte décrivant le vêtement pour générer une image mannequin fidèle\n +
+          (extra ? \nInfos supplémentaires de l’utilisateur : ${extra}\n : ""),
+      },
+    ];
 
     // Ajoute jusqu’à 6 images
     for (const dataUrl of images.slice(0, 6)) {
@@ -159,7 +162,8 @@ app.post("/api/generate-mannequin", async (req, res) => {
       refFiles.push(await dataUrlToFile(images[i], "ref_" + (i + 1)));
     }
 
-    const prompt = À partir des PHOTOS DE RÉFÉRENCE, génère une photo studio réaliste d’un mannequin portant EXACTEMENT le même vêtement.\n\n +
+    const prompt =
+      À partir des PHOTOS DE RÉFÉRENCE, génère une photo studio réaliste d’un mannequin portant EXACTEMENT le même vêtement.\n\n +
       Contraintes OBLIGATOIRES :\n +
       - Fidélité maximale au vêtement des photos (coupe, matière, texture, coutures, col, manches, bords-côtes).\n +
       - Couleurs IDENTIQUES (ne change pas la teinte / saturation / luminosité).\n +

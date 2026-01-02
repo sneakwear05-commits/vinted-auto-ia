@@ -62,7 +62,7 @@ async function dataUrlToFile(dataUrl, name = "ref") {
 
   const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   const buf = Buffer.from(b64, "base64");
- return await toFile(buf, ${name}.${ext}, { type: mime });
+  return await toFile(buf, name + "." + ext, { type: mime });
 }
 
 // Convertit une dataURL (data:image/...;base64,...) en File pour l'API images.edit

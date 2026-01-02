@@ -71,7 +71,7 @@ async function dataUrlToFile(dataUrl, name = "ref") {
   }
 
   // ✅ IMPORTANT : on passe le MIME, sinon ça part en application/octet-stream
-  return await toFile(buf, ${name}.${ext}, { type: mime });
+  return await toFile(buf, name + "." + ext, { type: mime });
 }
 
 // 1) Générer annonce (title/description/prix/prompt mannequin) — AVEC photos en référence

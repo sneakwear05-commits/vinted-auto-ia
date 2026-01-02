@@ -65,38 +65,28 @@ async function dataUrlToFile(dataUrl, name = "ref") {
   return await toFile(buf, ${name}.${ext}, { type: mime });
 }
 
-// 1) Générer l'annonce
-app.post("/api/generate-listing", async (req, res) => {
-  try {
-    const { extra = "", useAi = true } = req.body || {};
-    const images = getImagesFromBody(req.body);
+// Convertit une dataURL (data:image/...;base64,...) en File pour l'API images.edit
+async function dataUrlToFile(dataUrl, name = "ref") {
+  const m = String(dataUrl || "").match(/^data:(image\/[^;]+);base64,(.+)$/);
+  if (!m) throw new Error("Image invalide: data URL attendu (data:image/...;base64,...)");
 
-    if (!useAi) {
-      return res.json({
-        title: "titre en minuscules (mode démo)",
-        description: "description en mode démo. active l’ia pour générer automatiquement.",
-        price: "—",
-        mannequin_prompt: "un vêtement",
-      });
-    }
+  const mime = m[1].toLowerCase();
+  const b64 = m[2];
 
-    requireKey();
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // L’API images accepte: jpg/jpeg, png, webp (max 50MB).
+  const allowed = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+  if (!allowed.has(mime)) {
+    throw new Error(
+      Format image non supporté (${mime}). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > "Le plus compatible").
+    );
+  }
 
-    const content = [
-      {
-        type: "input_text",
-        text: `Tu es un expert Vinted (Belgique). À partir des photos fournies, génère une annonce Vinted en FR.
-Contraintes:
-- titre entièrement en minuscules
-- description détaillée, claire, vendeuse, honnête
-- mentionner matière(s), taille, coupe, couleurs, état, défauts si visibles
-- terminer par une ligne de hashtags pertinents (10-20 max)
-- proposer un prix conseillé sous forme: "xx€ (fourchette: aa–bb€)".
-- retourner en JSON STRICT avec clés: title, description, price, mannequin_prompt.
-Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
-      },
-    ];
+  const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+  const buf = Buffer.from(b64, "base64");
+
+  // ✅ IMPORTANT : on passe le MIME, sinon ça part en application/octet-stream
+  return await toFile(buf, ${name}.${ext}, { type: mime });
+}
 
     // Add up to 6 images
     for (const dataUrl of images.slice(0, 6)) {

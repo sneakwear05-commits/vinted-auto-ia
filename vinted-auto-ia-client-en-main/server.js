@@ -62,7 +62,7 @@ async function dataUrlToFile(dataUrl, name = "ref") {
 
   const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   const buf = Buffer.from(b64, "base64");
-  return await toFile(buf, `${name}.${ext}`);
+  return await toFile(buf, ${name}.${ext}, { type: mime });
 }
 
 // 1) Générer l'annonce

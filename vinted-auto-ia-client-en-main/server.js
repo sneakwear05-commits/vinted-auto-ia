@@ -127,7 +127,8 @@ app.post("/api/generate-mannequin", async (req, res) => {
     // Convertit les images dataURL en "fichiers" envoyables à l’API (max 6)
     const refFiles = [];
     for (let i = 0; i < Math.min(images.length, 6); i++) {
-      refFiles.push(await dataUrlToFile(images[i], ref_${i + 1}));
+      refFiles.push(await dataUrlToFile(images[i], "ref_" + (i + 1)));
+
     }
 
     const prompt = `

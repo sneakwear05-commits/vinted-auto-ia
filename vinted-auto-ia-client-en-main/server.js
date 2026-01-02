@@ -88,18 +88,17 @@ app.post("/api/generate-listing", async (req, res) => {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const content = [
-      {
-        type: "input_text",
-        text:
-          Tu es un expert Vinted. À partir des photos de vêtements, génère une annonce optimisée.\n +
-          Réponds STRICTEMENT en JSON (pas de texte autour) avec ces champs :\n +
-          - title: titre court (sans majuscules, tout en minuscules)\n +
-          - description: description détaillée + état + mesures si possible + matière si identifiable. Termine par une ligne de hashtags pertinents.\n +
-          - price: prix conseillé (nombre ou texte court) en euros\n +
-          - mannequin_prompt: un court texte décrivant le vêtement pour générer une image mannequin fidèle\n +
-          (extra ? \nInfos additionnelles: ${extra} : ""),
-      },
-    ];
+  {
+    type: "input_text",
+    text:
+      Tu es un expert Vinted. À partir des photos de vêtements, génère une annonce optimisée.\n +
+      Réponds STRICTEMENT en JSON (pas de texte autour) avec ces champs :\n +
+      - title: titre court (sans majuscules, tout en minuscules)\n +
+      - description: description détaillée + état + mesures si possible + matière si identifiable. Termine par une ligne de hashtags pertinents.\n +
+      - price: prix conseillé (nombre ou texte court) en euros\n +
+      - mannequin_prompt: un court texte décrivant le vêtement pour générer une image mannequin fidèle\n,
+  },
+];
 
     // Ajoute jusqu’à 6 images
     for (const dataUrl of images.slice(0, 6)) {

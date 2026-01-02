@@ -55,10 +55,12 @@ async function dataUrlToFile(dataUrl, name = "ref") {
   // L’API images accepte: jpg/jpeg, png, webp (max 50MB).
   const allowed = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
   if (!allowed.has(mime)) {
-    throw new Error(
-      Format image non supporté (${mime}). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > "Le plus compatible").
-    );
-  }
+  throw new Error(
+    "Format image non supporté (" +
+      mime +
+      "). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > \"Le plus compatible\")."
+  );
+}
 
   const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   const buf = Buffer.from(b64, "base64");

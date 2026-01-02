@@ -1,9 +1,8 @@
 import express from "express";
 import cors from "cors";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import path from "path";
 import { fileURLToPath } from "url";
-import { File } from "node:buffer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,44 +36,20 @@ function normalizeLower(s) {
   return (s || "").trim().toLowerCase();
 }
 
-function dataUrlToFile(dataUrl, fallbackName = "image.png") {
-  // Accepts: data:image/png;base64,AAAA...
-  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) return null;
+async function dataUrlToFile(dataUrl, name = "ref") {
+  const m = String(dataUrl || "").match(/^data:(image\/\w+);base64,(.+)$/);
+  if (!m)
+    throw new Error(
+      "Image invalide: data URL attendu (data:image/...;base64,...)"
+    );
 
-  const firstComma = dataUrl.indexOf(",");
-  if (firstComma === -1) return null;
-
-  const meta = dataUrl.slice(5, firstComma); // "image/png;base64"
-  const b64 = dataUrl.slice(firstComma + 1);
-
-  const [mimeRaw] = meta.split(";");
-  const mime = mimeRaw || "image/png";
-
-  const ext =
-    mime === "image/jpeg" ? "jpg" :
-    mime === "image/webp" ? "webp" :
-    "png";
-
-  const name = fallbackName.includes(".") ? fallbackName : `${fallbackName}.${ext}`;
+  const mime = m[1];
+  const b64 = m[2];
+  const ext = mime === "image/jpeg" ? "jpg" : mime.split("/")[1];
   const buf = Buffer.from(b64, "base64");
-  return new File([buf], name, { type: mime });
-}
 
-async function openaiFetchJson(url, options) {
-  const resp = await fetch(url, options);
-  const text = await resp.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = null; }
-  if (!resp.ok) {
-    const msg =
-      (json && (json.error?.message || json.message)) ||
-      `OpenAI HTTP ${resp.status}`;
-    const err = new Error(msg);
-    err.status = resp.status;
-    err.details = json || text;
-    throw err;
-  }
-  return json || {};
+  // toFile retourne un objet "File" compatible avec l'API OpenAI
+  return await toFile(buf, ${name}.${ext});
 }
 
 // 1) Générer l'annonce
@@ -132,7 +107,6 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
 
     // safety normalizations
     obj.title = normalizeLower(obj.title);
-
     res.json({
       title: obj.title || "",
       description: obj.description || "",
@@ -146,7 +120,7 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
   }
 });
 
-// 2) Générer photo mannequin (sans visage)
+// 2) Générer photo mannequin (sans visage) — AVEC photos de référence
 app.post("/api/generate-mannequin", async (req, res) => {
   try {
     const { images = [], description = "vêtement", gender = "homme" } =
@@ -154,67 +128,52 @@ app.post("/api/generate-mannequin", async (req, res) => {
 
     requireKey();
 
-    const prompt = `
-Tu dois reproduire au mieux le vêtement des photos de référence (si elles sont fournies).
-Contraintes OBLIGATOIRES :
-- Couleur : IDENTIQUE (ne change pas la teinte, saturation, ni luminosité). Ne pas rendre plus foncé ou plus clair.
-- Logo : IDENTIQUE (même logo, même taille, même position). N’invente JAMAIS un logo. Si le logo n’est pas parfaitement visible, n’en mets pas.
-- Coupe & détails : IDENTIQUES (col, maille, texture, bords-côtes, couture, longueur, manches).
-- Aucun ajout : pas de motifs, pas de texte, pas de marques, pas d’étiquettes visibles.
-- Mannequin : sans visage (cou coupé/masqué), posture neutre.
-- Fond studio neutre, éclairage doux et réaliste (balance des blancs neutre, pas de dérive de couleur).
-
-Mannequin ${gender}, SANS VISAGE (buste/cou coupé, aucune partie du visage visible).
-Le mannequin porte : ${description}.
-`.trim();
-
-    // Si le client envoie des photos (data URLs), on utilise l'endpoint "images/edits" pour mieux coller au vêtement.
-    // Sinon, on génère juste depuis le prompt.
-    let b64 = null;
-
-    if (Array.isArray(images) && images.length > 0) {
-      const form = new FormData();
-      form.append("model", process.env.IMAGE_MODEL || "gpt-image-1");
-      form.append("prompt", prompt);
-      form.append("size", "1024x1024");
-      form.append("quality", "high");
-      form.append("output_format", "png");
-      // NOTE: pour gpt-image-1, tu peux régler input_fidelity si tu veux plus de "respect" de l'image source.
-      form.append("input_fidelity", "high");
-
-      let added = 0;
-      for (const [i, dataUrl] of (images || []).slice(0, 8).entries()) {
-        const file = dataUrlToFile(dataUrl, `ref_${i + 1}.png`);
-        if (!file) continue;
-        form.append("image[]", file);
-        added++;
-      }
-
-      if (added === 0) {
-        throw new Error("Aucune image valide reçue pour le mannequin.");
-      }
-
-      const json = await openaiFetchJson("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: form,
-      });
-
-      b64 = json?.data?.[0]?.b64_json || null;
-    } else {
-      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const img = await client.images.generate({
-        model: process.env.IMAGE_MODEL || "gpt-image-1",
-        prompt,
-        size: "1024x1024",
-        quality: "high",
-        output_format: "png",
-      });
-      b64 = img?.data?.[0]?.b64_json || null;
+    if (!images || images.length === 0) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Ajoute au moins 1 photo (images[])." });
     }
 
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Convertit les dataURL en fichiers envoyables à l'API (max 6)
+    const refFiles = [];
+    for (let i = 0; i < Math.min(images.length, 6); i++) {
+      refFiles.push(await dataUrlToFile(images[i], ref_${i + 1}));
+    }
+
+    const prompt = `
+À partir des PHOTOS DE RÉFÉRENCE fournies, crée une image studio d’un mannequin portant EXACTEMENT le même vêtement.
+
+Contraintes OBLIGATOIRES :
+- Reproduire EXACTEMENT le vêtement des photos (forme, matière, texture, coutures, col, manches, bords-côtes).
+- Couleur IDENTIQUE (ne change pas la teinte / saturation / luminosité).
+- Logos / broderies : IDENTIQUES en taille et position. Si un logo n’est pas parfaitement lisible sur les photos, NE PAS en inventer.
+- Aucun ajout (pas de motifs, pas de texte, pas de marque inventée).
+- Mannequin : sans visage (cou coupé/masqué), posture neutre.
+- Fond studio neutre, éclairage doux, balance des blancs neutre (pas de dérive).
+- Rendu réaliste.
+
+Mannequin ${gender}, SANS VISAGE.
+Le mannequin porte : ${description}.
+Vue souhaitée : face (centrée, vêtement bien visible).
+`;
+
+    const img = await client.images.edits({
+      model: process.env.IMAGE_MODEL || "gpt-image-1",
+      image: refFiles,
+      prompt,
+      size: "1024x1024",
+      quality: "high",
+      output_format: "png",
+      // Optionnel (si supporté par le modèle) : aide à coller davantage au visuel
+      // input_fidelity: "high",
+    });
+
+    const b64 = img.data?.[0]?.b64_json;
     if (!b64) throw new Error("Aucune image renvoyée par l’API.");
-    res.json({ ok: true, image_data_url: `data:image/png;base64,${b64}` });
+
+    res.json({ ok: true, image_data_url: data:image/png;base64,${b64} });
   } catch (e) {
     res
       .status(e.status || 500)

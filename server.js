@@ -92,13 +92,26 @@ app.post("/api/generate-listing", async (req, res) => {
     const content = [
   {
     type: "input_text",
-    text: `Tu es un expert Vinted. À partir des photos de vêtements, génère une annonce optimisée.
-Réponds STRICTEMENT en JSON (pas de texte autour) avec ces champs :
-- title: titre court (sans majuscules, tout en minuscules)
-- description: description détaillée + état + mesures si possible + matière si identifiable. Termine par une ligne de hashtags pertinents.
-- price: prix conseillé (nombre ou texte court) en euros
-- mannequin_prompt: un court texte décrivant le vêtement pour générer une image mannequin fidèle
-${extra ? \nInfos supplémentaires de l’utilisateur : ${extra}\n : ""}`,
+    text:
+      `Tu es un expert Vinted. À partir des photos de vêtements, génère une annonce optimisée pour Vinted.
+
+Contraintes :
+- Le titre doit être tout en minuscules.
+- Description détaillée : marque, taille, état, matières, mesures si possible.
+- Mentionner les défauts s’il y en a.
+- Proposer un prix conseillé.
+- Ajouter des hashtags pertinents à la fin.
+
+Réponds avec un JSON STRICT au format :
+{
+  "title": "...",
+  "description": "...",
+  "price_suggested_eur": 0,
+  "defects": ["..."],
+  "hashtags": ["#...", "#..."]
+}
+`
+      + (extra ? \nInfos supplémentaires de l'utilisateur : ${extra}\n : ""),
   },
 ];
 

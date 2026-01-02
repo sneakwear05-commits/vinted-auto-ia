@@ -173,7 +173,7 @@ app.post("/api/generate-mannequin", async (req, res) => {
     Vêtement à porter (rappel): ${description}.
     `;
 
-    const img = await client.images.edits({
+    const img = await client.images.edit({
       model: process.env.IMAGE_MODEL || "gpt-image-1",
       image: refFiles,
       prompt,

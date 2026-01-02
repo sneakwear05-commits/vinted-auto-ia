@@ -12,7 +12,7 @@ const app = express();
 // ✅ Plus large pour les photos iPhone en base64 (évite 413 / body tronqué)
 app.use(express.json({ limit: process.env.JSON_LIMIT || "80mb" }));
 
-// Simplifié au max : on autorise toutes les origines (évite CORS qui casse sur iPhone).
+// ✅ Simplifié au max : on autorise toutes les origines (évite CORS qui casse sur iPhone).
 app.use(cors({ origin: true }));
 
 // Servir la PWA
@@ -44,7 +44,7 @@ function getImagesFromBody(body) {
   return [];
 }
 
-// Convertit une dataURL (data:image/...;base64,...) en File pour l'API images.edits
+// ✅ Convertit une dataURL (data:image/...;base64,...) en File pour l'API images.edit
 async function dataUrlToFile(dataUrl, name = "ref") {
   const m = String(dataUrl || "").match(/^data:(image\/[^;]+);base64,(.+)$/);
   if (!m) throw new Error("Image invalide: data URL attendu (data:image/...;base64,...)");
@@ -52,53 +52,55 @@ async function dataUrlToFile(dataUrl, name = "ref") {
   const mime = m[1].toLowerCase();
   const b64 = m[2];
 
-  // L’API images.edits accepte: jpg/jpeg, png, webp (max 50MB).
+  // L’API images accepte: jpg/jpeg, png, webp (max 50MB).
   const allowed = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
   if (!allowed.has(mime)) {
-    throw new Error(
-      `Format image non supporté (${mime}). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > "Le plus compatible").`
-    );
-  }
+  throw new Error(
+    "Format image non supporté (" +
+      mime +
+      "). Essaie de sélectionner des photos en JPEG/PNG/WebP (sur iPhone: Réglages > Appareil photo > Formats > \"Le plus compatible\")."
+  );
+}
 
   const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   const buf = Buffer.from(b64, "base64");
-  return await toFile(buf, `${name}.${ext}`);
+
+  // Sécurité : l’API image a une limite (~50MB)
+  if (buf.length > 50 * 1024 * 1024) {
+    throw new Error("Image trop lourde (max 50MB).");
+  }
+
+  // ✅ IMPORTANT : on passe le MIME, sinon ça part en application/octet-stream
+  return await toFile(buf, name + "." + ext, { type: mime });
 }
 
-// 1) Générer l'annonce
+// 1) Générer annonce (title/description/prix/prompt mannequin) — AVEC photos en référence
 app.post("/api/generate-listing", async (req, res) => {
   try {
-    const { extra = "", useAi = true } = req.body || {};
     const images = getImagesFromBody(req.body);
+    const { extra = "" } = req.body || {};
+    requireKey();
 
-    if (!useAi) {
-      return res.json({
-        title: "titre en minuscules (mode démo)",
-        description: "description en mode démo. active l’ia pour générer automatiquement.",
-        price: "—",
-        mannequin_prompt: "un vêtement",
-      });
+    if (images.length === 0) {
+      return res.status(400).json({ ok: false, error: "Ajoute au moins 1 photo (images[])." });
     }
 
-    requireKey();
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const content = [
-      {
-        type: "input_text",
-        text: `Tu es un expert Vinted (Belgique). À partir des photos fournies, génère une annonce Vinted en FR.
-Contraintes:
-- titre entièrement en minuscules
-- description détaillée, claire, vendeuse, honnête
-- mentionner matière(s), taille, coupe, couleurs, état, défauts si visibles
-- terminer par une ligne de hashtags pertinents (10-20 max)
-- proposer un prix conseillé sous forme: "xx€ (fourchette: aa–bb€)".
-- retourner en JSON STRICT avec clés: title, description, price, mannequin_prompt.
-Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
-      },
-    ];
+  {
+    type: "input_text",
+    text:
+      Tu es un expert Vinted. À partir des photos de vêtements, génère une annonce optimisée.\n +
+      Réponds STRICTEMENT en JSON (pas de texte autour) avec ces champs :\n +
+      - title: titre court (sans majuscules, tout en minuscules)\n +
+      - description: description détaillée + état + mesures si possible + matière si identifiable. Termine par une ligne de hashtags pertinents.\n +
+      - price: prix conseillé (nombre ou texte court) en euros\n +
+      - mannequin_prompt: un court texte décrivant le vêtement pour générer une image mannequin fidèle\n,
+  },
+];
 
-    // Add up to 6 images
+    // Ajoute jusqu’à 6 images
     for (const dataUrl of images.slice(0, 6)) {
       content.push({ type: "input_image", image_url: dataUrl });
     }
@@ -111,20 +113,21 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
     });
 
     const txt = r.output_text || "{}";
-    let obj;
+    let obj = {};
     try {
       obj = JSON.parse(txt);
     } catch {
       obj = {};
     }
 
-    obj.title = normalizeLower(obj.title);
+    const title = normalizeLower(obj.title);
 
     res.json({
-      title: obj.title || "",
+      ok: true,
+      title: title || "",
       description: obj.description || "",
-      price: obj.price || "",
-      mannequin_prompt: obj.mannequin_prompt || obj.title || "vêtement",
+      price: obj.price ?? "",
+      mannequin_prompt: obj.mannequin_prompt || title || "vêtement",
     });
   } catch (e) {
     res.status(e.status || 500).json({ ok: false, error: String(e?.message || e) });
@@ -156,24 +159,20 @@ app.post("/api/generate-mannequin", async (req, res) => {
       refFiles.push(await dataUrlToFile(images[i], "ref_" + (i + 1)));
     }
 
-    const prompt = `
-    À partir des PHOTOS DE RÉFÉRENCE, génère une photo studio réaliste d’un mannequin portant EXACTEMENT le même vêtement.
+    const prompt = À partir des PHOTOS DE RÉFÉRENCE, génère une photo studio réaliste d’un mannequin portant EXACTEMENT le même vêtement.\n\n +
+      Contraintes OBLIGATOIRES :\n +
+      - Fidélité maximale au vêtement des photos (coupe, matière, texture, coutures, col, manches, bords-côtes).\n +
+      - Couleurs IDENTIQUES (ne change pas la teinte / saturation / luminosité).\n +
+      - Logos / broderies : identiques en taille et position. Si un détail n’est pas lisible sur les photos, NE PAS l’inventer.\n +
+      - Aucun ajout (pas de motifs inventés, pas de texte, pas de marque inventée).\n +
+      - Mannequin : SANS VISAGE (cadrage du cou vers le bas, pas de tête).\n +
+      - Posture neutre, vue de face, vêtement bien visible et centré.\n +
+      - Fond studio neutre (blanc/gris clair), éclairage doux, balance des blancs neutre (pas de dérive).\n +
+      - Rendu photo réaliste (pas de style dessin/illustration).\n\n +
+      Mannequin: ${gender}.\n +
+      Vêtement à porter (rappel): ${description}.\n;
 
-    Contraintes OBLIGATOIRES :
-    - Fidélité maximale au vêtement des photos (coupe, matière, texture, coutures, col, manches, bords-côtes).
-    - Couleurs IDENTIQUES (ne change pas la teinte / saturation / luminosité).
-    - Logos / broderies : identiques en taille et position. Si un détail n’est pas lisible sur les photos, NE PAS l’inventer.
-    - Aucun ajout (pas de motifs inventés, pas de texte, pas de marque inventée).
-    - Mannequin : SANS VISAGE (cadrage du cou vers le bas, pas de tête).
-    - Posture neutre, vue de face, vêtement bien visible et centré.
-    - Fond studio neutre (blanc/gris clair), éclairage doux, balance des blancs neutre (pas de dérive).
-    - Rendu photo réaliste (pas de style dessin/illustration).
-
-    Mannequin: ${gender}.
-    Vêtement à porter (rappel): ${description}.
-    `;
-
-    const img = await client.images.edits({
+    const img = await client.images.edit({
       model: process.env.IMAGE_MODEL || "gpt-image-1",
       image: refFiles,
       prompt,

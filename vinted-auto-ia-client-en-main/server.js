@@ -161,6 +161,7 @@ Vue souhaitée : face (centrée, vêtement bien visible).
     if (!b64) throw new Error("Aucune image renvoyée par l’API.");
 
     res.json({ ok: true, image_data_url: "data:image/png;base64," + b64 });
+
     
   } catch (e) {
     res.status(e.status || 500).json({ ok: false, error: String(e?.message || e) });

@@ -8,7 +8,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json({ limit: "30mb" }));
+
+// ✅ Plus large pour les photos iPhone en base64 (évite 413 / body tronqué)
+app.use(express.json({ limit: process.env.JSON_LIMIT || "80mb" }));
 
 // Simplifié au max : on autorise toutes les origines (évite CORS qui casse sur iPhone).
 app.use(cors({ origin: true }));
@@ -34,6 +36,14 @@ function normalizeLower(s) {
   return (s || "").trim().toLowerCase();
 }
 
+// ✅ Accepte images OU "images[]" + gère le cas string au lieu de tableau
+function getImagesFromBody(body) {
+  const raw = body?.images ?? body?.["images[]"] ?? [];
+  if (Array.isArray(raw)) return raw.filter(Boolean);
+  if (typeof raw === "string" && raw.trim()) return [raw];
+  return [];
+}
+
 // Convertit une dataURL (data:image/...;base64,...) en File pour l'API images.edits
 async function dataUrlToFile(dataUrl, name = "ref") {
   const m = String(dataUrl || "").match(/^data:(image\/\w+);base64,(.+)$/);
@@ -44,14 +54,15 @@ async function dataUrlToFile(dataUrl, name = "ref") {
   const ext = mime === "image/jpeg" ? "jpg" : mime.split("/")[1];
   const buf = Buffer.from(b64, "base64");
 
-  // ⚠️ IMPORTANT: string normale, pas ${} tout seul
   return await toFile(buf, name + "." + ext);
 }
 
 // 1) Générer l'annonce
 app.post("/api/generate-listing", async (req, res) => {
   try {
-    const { images = [], extra = "", useAi = true } = req.body || {};
+    const { extra = "", useAi = true } = req.body || {};
+    const images = getImagesFromBody(req.body);
+
     if (!useAi) {
       return res.json({
         title: "titre en minuscules (mode démo)",
@@ -80,7 +91,7 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
     ];
 
     // Add up to 6 images
-    for (const dataUrl of (images || []).slice(0, 6)) {
+    for (const dataUrl of images.slice(0, 6)) {
       content.push({ type: "input_image", image_url: dataUrl });
     }
 
@@ -115,10 +126,17 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
 // 2) Générer photo mannequin (sans visage) — AVEC photos en référence
 app.post("/api/generate-mannequin", async (req, res) => {
   try {
-    const { images = [], description = "vêtement", gender = "homme" } = req.body || {};
+    const images = getImagesFromBody(req.body);
+    const { description = "vêtement", gender = "homme" } = req.body || {};
     requireKey();
 
-    if (!images || images.length === 0) {
+    // ✅ Logs activables si besoin (Render > Environment: DEBUG_IMAGES=1)
+    if (process.env.DEBUG_IMAGES === "1") {
+      console.log("BODY keys:", Object.keys(req.body || {}));
+      console.log("images count:", images.length);
+    }
+
+    if (images.length === 0) {
       return res.status(400).json({ ok: false, error: "Ajoute au moins 1 photo (images[])." });
     }
 
@@ -128,7 +146,6 @@ app.post("/api/generate-mannequin", async (req, res) => {
     const refFiles = [];
     for (let i = 0; i < Math.min(images.length, 6); i++) {
       refFiles.push(await dataUrlToFile(images[i], "ref_" + (i + 1)));
-
     }
 
     const prompt = `
@@ -161,8 +178,6 @@ Vue souhaitée : face (centrée, vêtement bien visible).
     if (!b64) throw new Error("Aucune image renvoyée par l’API.");
 
     res.json({ ok: true, image_data_url: "data:image/png;base64," + b64 });
-
-    
   } catch (e) {
     res.status(e.status || 500).json({ ok: false, error: String(e?.message || e) });
   }

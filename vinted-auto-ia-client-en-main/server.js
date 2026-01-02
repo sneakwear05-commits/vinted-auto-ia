@@ -102,25 +102,28 @@ app.post("/api/generate-mannequin", async (req, res) => {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const prompt =
-      Tu dois reproduire EXACTEMENT le vêtement des photos de référence.
+      const prompt = `
+Tu dois reproduire EXACTEMENT le vêtement des photos de référence.
 Contraintes OBLIGATOIRES :
-- Couleur : IDENTIQUE (ne change pas la teinte, saturation, ni luminosité).
+- Couleur : IDENTIQUE (ne change pas la teinte, saturation, ni luminosité). Ne pas rendre plus foncé ou plus clair.
 - Logo : IDENTIQUE (même logo, même taille, même position). N’invente JAMAIS un logo. Si le logo n’est pas parfaitement visible, n’en mets pas.
 - Coupe & détails : IDENTIQUES (col, maille, texture, bords-côtes, couture, longueur, manches).
 - Aucun ajout : pas de motifs, pas de texte, pas de marques, pas d’étiquettes visibles.
 - Mannequin : sans visage (cou coupé/masqué), posture neutre.
-- Fond studio neutre, éclairage doux et réaliste.
+- Fond studio neutre, éclairage doux et réaliste (balance des blancs neutre, pas de dérive de couleur).
 Sortie souhaitée : 3 vues (face, dos, zoom logo/détail) en gardant strictement les caractéristiques.
-`Photo studio type Vinted, fond blanc, rendu photo réaliste.
+
 Mannequin ${gender}, SANS VISAGE (buste/cou coupé, aucune partie du visage visible).
-Le mannequin porte: ${description}.
-Respecter la couleur et le style décrits.`;
+Le mannequin porte : ${description}.
+`;
 
     const img = await client.images.generate({
-      model: process.env.IMAGE_MODEL || "gpt-image-1",
-      prompt,
-      size: "1024x1024"
-    });
+  model: process.env.IMAGE_MODEL || "gpt-image-1",
+  prompt,
+  size: "1024x1024",
+  quality: "high",
+  output_format: "png"
+});
 
     const b64 = img.data?.[0]?.b64_json;
     if(!b64) throw new Error("Aucune image renvoyée par l’API.");

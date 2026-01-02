@@ -24,9 +24,7 @@ app.get("/api/health", (req, res) => {
 // Helpers
 function requireKey() {
   if (!process.env.OPENAI_API_KEY) {
-    const err = new Error(
-      "OPENAI_API_KEY manquante (ajoute-la dans Render > Environment)."
-    );
+    const err = new Error("OPENAI_API_KEY manquante (ajoute-la dans Render > Environment).");
     err.status = 400;
     throw err;
   }
@@ -36,20 +34,18 @@ function normalizeLower(s) {
   return (s || "").trim().toLowerCase();
 }
 
+// Convertit une dataURL (data:image/...;base64,...) en File pour l'API images.edits
 async function dataUrlToFile(dataUrl, name = "ref") {
   const m = String(dataUrl || "").match(/^data:(image\/\w+);base64,(.+)$/);
-  if (!m)
-    throw new Error(
-      "Image invalide: data URL attendu (data:image/...;base64,...)"
-    );
+  if (!m) throw new Error("Image invalide: data URL attendu (data:image/...;base64,...)");
 
   const mime = m[1];
   const b64 = m[2];
   const ext = mime === "image/jpeg" ? "jpg" : mime.split("/")[1];
   const buf = Buffer.from(b64, "base64");
 
-  // toFile retourne un objet "File" compatible avec l'API OpenAI
-  return await toFile(buf, ${name}.${ext});
+  // ⚠️ IMPORTANT: string normale, pas ${} tout seul
+  return await toFile(buf, name + "." + ext);
 }
 
 // 1) Générer l'annonce
@@ -59,8 +55,7 @@ app.post("/api/generate-listing", async (req, res) => {
     if (!useAi) {
       return res.json({
         title: "titre en minuscules (mode démo)",
-        description:
-          "description en mode démo. active l’ia pour générer automatiquement.",
+        description: "description en mode démo. active l’ia pour générer automatiquement.",
         price: "—",
         mannequin_prompt: "un vêtement",
       });
@@ -96,7 +91,6 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
       text: { format: { type: "json_object" } },
     });
 
-    // output_text should contain JSON
     const txt = r.output_text || "{}";
     let obj;
     try {
@@ -105,8 +99,8 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
       obj = {};
     }
 
-    // safety normalizations
     obj.title = normalizeLower(obj.title);
+
     res.json({
       title: obj.title || "",
       description: obj.description || "",
@@ -114,29 +108,23 @@ Infos supplémentaires de l’utilisateur (optionnel): ${extra}`,
       mannequin_prompt: obj.mannequin_prompt || obj.title || "vêtement",
     });
   } catch (e) {
-    res
-      .status(e.status || 500)
-      .json({ ok: false, error: String(e?.message || e) });
+    res.status(e.status || 500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 
-// 2) Générer photo mannequin (sans visage) — AVEC photos de référence
+// 2) Générer photo mannequin (sans visage) — AVEC photos en référence
 app.post("/api/generate-mannequin", async (req, res) => {
   try {
-    const { images = [], description = "vêtement", gender = "homme" } =
-      req.body || {};
-
+    const { images = [], description = "vêtement", gender = "homme" } = req.body || {};
     requireKey();
 
     if (!images || images.length === 0) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Ajoute au moins 1 photo (images[])." });
+      return res.status(400).json({ ok: false, error: "Ajoute au moins 1 photo (images[])." });
     }
 
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    // Convertit les dataURL en fichiers envoyables à l'API (max 6)
+    // Convertit les images dataURL en "fichiers" envoyables à l’API (max 6)
     const refFiles = [];
     for (let i = 0; i < Math.min(images.length, 6); i++) {
       refFiles.push(await dataUrlToFile(images[i], ref_${i + 1}));
@@ -152,7 +140,7 @@ Contraintes OBLIGATOIRES :
 - Aucun ajout (pas de motifs, pas de texte, pas de marque inventée).
 - Mannequin : sans visage (cou coupé/masqué), posture neutre.
 - Fond studio neutre, éclairage doux, balance des blancs neutre (pas de dérive).
-- Rendu réaliste.
+- Rendu réaliste, cadrage centré.
 
 Mannequin ${gender}, SANS VISAGE.
 Le mannequin porte : ${description}.
@@ -166,8 +154,6 @@ Vue souhaitée : face (centrée, vêtement bien visible).
       size: "1024x1024",
       quality: "high",
       output_format: "png",
-      // Optionnel (si supporté par le modèle) : aide à coller davantage au visuel
-      // input_fidelity: "high",
     });
 
     const b64 = img.data?.[0]?.b64_json;
@@ -175,9 +161,7 @@ Vue souhaitée : face (centrée, vêtement bien visible).
 
     res.json({ ok: true, image_data_url: data:image/png;base64,${b64} });
   } catch (e) {
-    res
-      .status(e.status || 500)
-      .json({ ok: false, error: String(e?.message || e) });
+    res.status(e.status || 500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 
